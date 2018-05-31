@@ -1,0 +1,7 @@
+{
+  "name": "reactor-rules",
+  "author": "EVRYTHNG",
+  "dependencies": {
+    "evrythng-extended": "^4.1.0"
+  }
+}
