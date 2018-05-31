@@ -1,6 +1,6 @@
 # reactor-rules
 
-A sample Reactor script allowing creation of Thng property updates and actions
+A reusable Reactor script allowing creation of Thng property updates and actions
 in response to Thng property updates and actions on Thngs. This can be used to
 automate Thng property updates and values according to simple arithmetic
 criteria.
