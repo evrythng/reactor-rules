@@ -14,8 +14,13 @@ Rules have two main fields:
 * `create` - an expression returning an output object that will be created when 
   the rule is run. This can be either an action or a property update.
 
-The `action` that triggered the script is provided so it can inform the rule and
-be used to create the output action or property update.
+The `action` or property update `key` and `value` that triggered the script is 
+provided so it can inform the rule and be used to create the output action or 
+property update. For example - when a property reaches a threshold, create an
+action with the new value as a `customField`.
+
+
+## Types of Rules
 
 There are two kinds of rule available with this script:
 
