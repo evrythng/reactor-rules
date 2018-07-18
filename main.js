@@ -1,65 +1,45 @@
 // ------------------------------- Configuration -------------------------------
 
 const ACTION_RULES = [{
-  when: 'scans',
-  create: [{
-    property: { key: 'active', value: true }
-  }]
+  when: action => action.type === '_LeftWarehouse',
+  create: action => ({ key: 'in_transit', value: true }),
+}, {
+  when: action => action.type === '_ArrivedAtDestination',
+  create: action => ({ key: 'in_transit', value: false }),
 }];
 
 const PROPERTY_RULES = [{
-  when: 'temperature_celsius > 100',
-  create: [{
-    property: { key: 'overheating', value: true }
-  }]
+  when: (key, value) => key === 'temperature_celsius' && value >= 100,
+  create: () => ({ key: 'overheating', value: true }),
+}, {
+  when: (key, value) => key === 'temperature_celsius' && value < 100,
+  create: () => ({ key: 'overheating', value: false }),
+}, {
+  when: (key, value) => key === 'weather_report' && value.includes('rain'),
+  create: (key, value) => ({ 
+    type: '_ForecastAlert', 
+    customFields: { conditions: value },
+  }),
 }];
 
 
 // ----------------------------------- Rules -----------------------------------
 
-const validateRuleOutput = (output) => {
-  return (output.action && output.action.type) ||
-      (output.property && (output.property.key && (output.property.value !== undefined)));
+const isAction = value => value.type && value.type.startsWith('_');
+
+const isPropertyUpdate = value => value.key && value.value !== undefined;
+
+const createOutput = (thngId, payload) => {
+  if (isAction(payload)) return app.thng(thngId).action(payload.type).create(payload);  
+  if (isPropertyUpdate(payload)) return app.thng(thngId).property().update(payload);
+  
+  throw new Error('Payload is neither action or property update');
 };
 
 const validateRule = (rule) => {
-  if (rule.when && rule.create && rule.create.length &&
-      rule.create.every(validateRuleOutput)) return;
+  if (rule.when && rule.create && typeof rule.create === 'function') return;
 
   throw new Error(`Rule is invalid: ${JSON.stringify(rule)}`);
-};
-
-const createOutputs = (rule, thngId) => Promise.all(rule.create.map((item) => {
-  if (item.action) return app.action(item.action.type).create(item.action);
-  if (item.property) {
-    if (!thngId) throw new Error(`Thng not specified, ${item.property.key} not updated.`);
-
-    return app.thng(thngId).property().update([item.property]);
-  }
-}));
-
-const runPropertyRule = (rule, propertyValue, thngId) => {
-  const tokens = rule.when.split(' ');
-  if (tokens.length !== 3) throw new Error('Invalid rule');
-
-  // Determine decision
-  const [key, operator, value] = tokens;
-  const operators = {
-    '>': n => n > value,
-    '>=': n => n >= value,
-    '==': n => n == value,
-    '<': n => n < value,
-    '<=': n => n <= value,
-    includes: n => `${n}`.includes(value),
-    '!=': n => n != value,
-    is: n => `${n}` == value
-  };
-
-  if (!operators[operator]) throw new Error(`Invalid rule operator: ${operator}`);
-  if (!operators[operator](propertyValue)) return Promise.resolve();
-
-  // Process outputs
-  return createOutputs(rule, thngId);
 };
 
 const checkPropertyRules = (event) => {
@@ -68,11 +48,11 @@ const checkPropertyRules = (event) => {
   // For each rule, see if it changed
   return Promise.all(PROPERTY_RULES.map((rule) => {
     validateRule(rule);
-    const changedKey = Object.keys(changes).find(item => rule.when.includes(item));
+    const changedKey = Object.keys(changes).find(item => rule.when(item, changes[item].newValue));
     if (!changedKey) return Promise.resolve();
 
-    logger.info(`Running property rule ${rule.when}`);
-    return runPropertyRule(rule, changes[changedKey].newValue, thng.id);
+    logger.info(`Running property rule ${rule.when} on ${thng.id}`);
+    return createOutput(thng.id, rule.create(changedKey, changes[changedKey].newValue));
   }));
 };
 
@@ -82,27 +62,29 @@ const checkActionRules = (event) => {
   // For each action rule, find outputs if type matches
   return Promise.all(ACTION_RULES.map((rule) => {
     validateRule(rule);
-    if (rule.when !== action.type) return Promise.resolve();
+    if (!rule.when(action)) return Promise.resolve();
+    if (!action.thng) throw new Error('Rule matched but action did not contain a Thng ID');
 
-    // Run rule
-    logger.info(`Running action rule ${rule.when}`);
-    return createOutputs(rule, action.thng);
+    logger.info(`Running action rule ${rule.when} on ${action.thng}`);
+    return createOutput(action.thng, rule.create(action));
   }));
 };
 
 
 // ------------------------------- Reactor Events ------------------------------
 
-const handle = (event, func) => {
-  func(event)
-    .catch(logger.error)
+const handleError = err => logger.error(err.message || err.errors[0]);
+
+const handleEvent = (event, handler) => {
+  handler(event)
+    .catch(handleError)
     .then(done);
 };
 
 function onActionCreated(event) {
-  handle(event, checkActionRules);
+  handleEvent(event, checkActionRules);
 }
 
 function onThngPropertiesChanged(event) {
-  handle(event, checkPropertyRules);
+  handleEvent(event, checkPropertyRules);
 }
