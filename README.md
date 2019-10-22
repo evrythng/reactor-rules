@@ -11,11 +11,11 @@ Rules have two main fields:
 
 * `when` - an expression that will return `true` if the rule is to be run.
 
-* `create` - an expression returning an output object that will be created when 
+* `create` - an expression returning an output object that will be created when
   the rule is run. This can be either an action or a property update.
 
-The `action` or property update `key` and `value` that triggered the script is 
-provided so it can inform the rule and be used to create the output action or 
+The `action` or property update `key` and `value` that triggered the script is
+provided so it can inform the rule and be used to create the output action or
 property update. For example - when a property reaches a threshold, create an
 action with the new value as a `customField`.
 
@@ -44,7 +44,7 @@ Example: `when: (key, value) => key === 'temperature_celsius' && value >= 100`
 1. Open the [Dashboard](https://dashboard.evrythng.com) and create a project and
    application.
 2. Paste `main.js` into the application's Reactor script field.
-3. Click 'Show dependencies' and set the `dependencies` to those in 
+3. Click 'Show dependencies' and set the `dependencies` to those in
    `package.json`.
 4. Save the new script with the 'Update' button.
 
@@ -75,8 +75,8 @@ const PROPERTY_RULES = [{
   create: () => ({ key: 'overheating', value: false }),
 }, {
   when: (key, value) => key === 'weather_report' && value.includes('rain'),
-  create: (key, value) => ({ 
-    type: '_ForecastAlert', 
+  create: (key, value) => ({
+    type: '_ForecastAlert',
     customFields: { conditions: value },
   }),
 }];
@@ -86,5 +86,5 @@ const PROPERTY_RULES = [{
 ## Usage
 
 Create actions or update properties on Thngs that match the rules you have
-configured. You should observe the outputs being created as configured, or an 
+configured. You should observe the outputs being created as configured, or an
 error if the rule is not valid or some other problem occurred.
